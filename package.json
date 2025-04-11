@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
+    "express": "^5.1.0",
+    "numeric": "^1.2.6",
+    "papaparse": "^5.5.2",
+    "react-papaparse": "^4.4.0",
+    "svd-js": "^1.1.1"
+  }
+}

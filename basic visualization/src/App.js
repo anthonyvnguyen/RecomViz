@@ -1,113 +1,167 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import Papa from "papaparse";
 import GrapherWrapper from "./GrapherWrapper";
 import "./App.css";
 
 function App() {
   const [userId, setUserId] = useState("");
-  const [levels, setLevels] = useState(1);
   const [graphData, setGraphData] = useState({ nodes: [], edges: [] });
+  const [recommendations, setRecommendations] = useState([]);
+  const [items, setItems] = useState(new Map());
   const [selectedNode, setSelectedNode] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // --- Generate mock data for demonstration ---
-  function generateMockRecommendations(userId, levels) {
-    // Simple data structure:
-    // user node -> recommended items (level 1)
-    // recommended items -> similar items (level 2)
-    // If levels > 2, you could keep expanding similarly.
-    const nodes = [];
-    const edges = [];
-  
-    // Level 0: User node
-    // Add user node
-    const userNodeId = `user-${userId}`;
-    nodes.push({ id: userNodeId, label: `User ${userId}`, level: 0 });
-  
-    // Level 1: Recommended products
-    // Mock recommended products for the user
-    const recommendedProducts = ["ProdA", "ProdB", "ProdC"];
-    recommendedProducts.forEach((prod) => {
-      nodes.push({ id: prod, label: `${prod} (Recommended)`, level: 1 });
-      edges.push({ source: userNodeId, target: prod });
-  
-      // Level 2: Similar items for each recommended product
-      // If user wants more levels, show "similar" expansions
-      if (levels > 1) {
-        // For each recommended product, add 2 "similar" items
-        const simItems = [`${prod}-Sim1`, `${prod}-Sim2`];
-        simItems.forEach((sim) => {
-          nodes.push({ id: sim, label: sim, level: 2 });
-          edges.push({ source: prod, target: sim });
+  useEffect(() => {
+    // Load recommendations data
+    Papa.parse("/user_recommendations.csv", {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: (results) => {
+        setRecommendations(results.data);
+        
+        // Load product info data
+        Papa.parse("/sample_item_info.csv", {
+          download: true,
+          header: true,
+          dynamicTyping: true,
+          complete: (itemResults) => {
+            console.log(itemResults.data);
+            const itemsMap = new Map(
+              itemResults.data.map(item => [item.product_id, item])
+            );
+            console.log(itemsMap);
+            setItems(itemsMap);
+            setIsLoading(false);
+          },
+          error: (err) => {
+            console.error("Error loading items:", err);
+            setIsLoading(false);
+          }
         });
-
-        // If levels > 2, you could continue similarly
-        // e.g. recommended complements, or further expansions
-        // in a real scenario, you would fetch from your rec system
+      },
+      error: (err) => {
+        console.error("Error loading recommendations:", err);
+        setIsLoading(false);
       }
     });
-  
-    return { nodes, edges };
-  }
-  
+  }, []);
 
-  // --- Form submit handler ---
-  function handleSubmit(e) {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!userId) return;
 
-    // In real code, you'd call your backend or rec logic here:
-    const data = generateMockRecommendations(userId, levels);
-    setGraphData(data);
-    setSelectedNode(null);
-  }
+    const userRecs = recommendations
+      .filter(r => r.user_id === userId)
+      .sort((a, b) => b.predicted_rating - a.predicted_rating)
+      .slice(0, 10);
 
-  // --- Called when user clicks a node in GrapherWrapper ---
-  const handleNodeClick = React.useCallback((nodeId) => {
-    setSelectedNode(nodeId);
-  }, []);
-  
+    const nodes = [
+      { 
+        id: `user-${userId}`, 
+        label: `User ${userId}`, 
+        level: 0,
+        type: 'user'
+      }
+    ];
+    
+    const edges = [];
+    
+    userRecs.forEach(rec => {
+      nodes.push({
+        id: rec.product_id,
+        label: `${rec.product_id}`,
+        level: 1,
+        type: 'product',
+        data: {
+          predictedRating: rec.predicted_rating
+        }
+      });
+      edges.push({
+        source: `user-${userId}`,
+        target: rec.product_id
+      });
+    });
+
+    setGraphData({ nodes, edges });
+    setSelectedNode(null);
+  };
+
+  const handleNodeClick = useCallback((nodeId) => {
+    const node = graphData.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    const itemKey = String(nodeId);
+    const itemData = items.get(itemKey);
+
+    console.log('Selected product data for', itemKey, ':', itemData);
+
+    if (node.type === 'product') {
+      console.log(node.id);
+      console.log(items.get("B093TH4WM6"));
+      // const itemData = items.get(node.id);
+      console.log('Selected product data:', itemData);
+      console.log('All items map:', items);
+    }
+    
+    setSelectedNode({
+      id: nodeId,
+      type: node.type,
+      data: {
+        ...(itemData || {}),
+        ...(node.data || {})
+      }
+    });
+  }, [graphData.nodes, items]);
 
   return (
     <div className="app-container">
-      <h1>Interactive Recommendation Graph</h1>
+      <h1>Recommendation Explorer</h1>
+      
+      {isLoading ? (
+        <div className="loading">Loading data...</div>
+      ) : (
+        <form onSubmit={handleSubmit} className="control-panel">
+          <input
+            type="text"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            placeholder="Enter User ID"
+            required
+          />
+          <button type="submit">Show Recommendations</button>
+        </form>
+      )}
 
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="userId">User ID: </label>
-        <input
-          id="userId"
-          type="text"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          required
-        />
-
-        <label htmlFor="levels"> # of levels: </label>
-        <input
-          id="levels"
-          type="number"
-          min="1"
-          value={levels}
-          onChange={(e) => setLevels(Number(e.target.value))}
-        />
-
-        <button type="submit">Generate Graph</button>
-      </form>
-
-      {/* Graph display */}
-      <div className="graph-section">
+      <div className="visualization-section">
         <GrapherWrapper
           nodes={graphData.nodes}
           edges={graphData.edges}
           onNodeClick={handleNodeClick}
         />
+        
+        {selectedNode && (
+          <div className="node-details">
+            <h3>Node Details</h3>
+            <p><strong>ID:</strong> {selectedNode.id}</p>
+            
+            {selectedNode.type === 'product' && (
+              <>
+                <p><strong>Title:</strong> {
+                  items.get(selectedNode.id)?.title || 'Title not available'
+                }</p>
+                <p><strong>Predicted Rating:</strong> {
+                  selectedNode.data.predictedRating?.toFixed(2) || 'N/A'
+                }</p>
+              </>
+            )}
+            
+            {selectedNode.type === 'user' && (
+              <p><strong>Type:</strong> User</p>
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Node detail display */}
-      {selectedNode && (
-        <div className="detail-section">
-          <h2>Node Details</h2>
-          <p>You clicked on: <strong>{selectedNode}</strong></p>
-        </div>
-      )}
     </div>
   );
 }
