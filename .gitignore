@@ -33,4 +33,4 @@ logs/
 ehthumbs.db
 Thumbs.db 
 node_modules
-
+data/.DS_Store
