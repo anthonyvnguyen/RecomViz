@@ -17,7 +17,7 @@ function GrapherWrapper({ nodes, edges, onNodeClick }) {
         // Create a new graph
         const graph = new Graph();
 
-        // Calculate coordinates using a circular layout
+        // Calculate coordinates using a more intelligent layout that reduces crossings
         const coords = {};
 
         // Place user node at center
@@ -25,17 +25,101 @@ function GrapherWrapper({ nodes, edges, onNodeClick }) {
             coords[node.id] = { x: 0, y: 0 };
         });
 
-        // Place product nodes in a circle around the user
-        const radius = 600; // Increased radius for better spacing
-        const angleStep = (2 * Math.PI) / productNodes.length;
+        // First, create a map of parents to their child nodes
+        const childrenByParent = {};
+        const nodesWithParent = productNodes.filter((node) => node.parentId);
+        const rootProductNodes = productNodes.filter((node) => !node.parentId);
 
-        productNodes.forEach((node, index) => {
+        // Create a map to track node levels (distance from user node)
+        const nodeLevels = {};
+        rootProductNodes.forEach((node) => (nodeLevels[node.id] = 1));
+
+        // Identify parent-child relationships and determine true node levels
+        nodesWithParent.forEach((node) => {
+            if (!childrenByParent[node.parentId]) {
+                childrenByParent[node.parentId] = [];
+            }
+            childrenByParent[node.parentId].push(node);
+
+            // Calculate level based on parent's level
+            const parentLevel = nodeLevels[node.parentId] || 1;
+            nodeLevels[node.id] = parentLevel + 1;
+        });
+
+        // Position the first level of product nodes in a circle
+        const baseRadius = 350;
+        let angleStep =
+            rootProductNodes.length > 0
+                ? (2 * Math.PI) / rootProductNodes.length
+                : 0;
+
+        rootProductNodes.forEach((node, index) => {
             const angle = index * angleStep;
             coords[node.id] = {
-                x: radius * Math.cos(angle),
-                y: radius * Math.sin(angle),
+                x: baseRadius * Math.cos(angle),
+                y: baseRadius * Math.sin(angle),
             };
         });
+
+        // Process children level by level to ensure proper spacing
+        const maxLevel = Math.max(...Object.values(nodeLevels), 1);
+        for (let level = 2; level <= maxLevel; level++) {
+            // Get all nodes at this level
+            const nodesAtLevel = Object.entries(nodeLevels)
+                .filter(([id, nodeLevel]) => nodeLevel === level)
+                .map(([id]) => id);
+
+            // Position each node based on its parent
+            nodesAtLevel.forEach((nodeId) => {
+                const node = nodesWithParent.find((n) => n.id === nodeId);
+                if (!node || !coords[node.parentId]) return;
+
+                const parentX = coords[node.parentId].x;
+                const parentY = coords[node.parentId].y;
+
+                // Get distance from parent to center
+                const parentDistFromCenter = Math.sqrt(
+                    parentX * parentX + parentY * parentY
+                );
+
+                // Calculate the angle from parent to center
+                const parentAngle = Math.atan2(parentY, parentX);
+
+                // Get siblings (nodes with same parent)
+                const siblings = childrenByParent[node.parentId] || [];
+                const siblingIndex = siblings.findIndex((s) => s.id === nodeId);
+
+                // Make the fan angle narrower as we move outward (prevents overlaps)
+                // Scale down by level to make outer levels have a smaller angular spread
+                const fanAngleScale = Math.max(0.3, 1 - (level - 1) * 0.15);
+                const fanAngleRange = ((Math.PI * 2) / 3) * fanAngleScale;
+
+                // Scale radius up by level to space out levels
+                const radiusScale = 1 + (level - 1) * 0.4; // Each level increases spacing by 40%
+                const childRadius = 250 * radiusScale;
+
+                // Position the child
+                let childAngle;
+                if (siblings.length === 1) {
+                    childAngle = parentAngle; // directly on line from center through parent
+                } else {
+                    const childAngleStep =
+                        siblings.length > 1
+                            ? fanAngleRange / (siblings.length - 1)
+                            : 0;
+                    childAngle =
+                        parentAngle -
+                        fanAngleRange / 2 +
+                        siblingIndex * childAngleStep;
+                }
+
+                // Calculate position to ensure we're moving outward from center
+                coords[nodeId] = {
+                    x: parentX + childRadius * Math.cos(childAngle),
+                    y: parentY + childRadius * Math.sin(childAngle),
+                };
+            });
+        }
 
         // Add nodes to the graph
         nodes.forEach((node) => {
@@ -60,9 +144,23 @@ function GrapherWrapper({ nodes, edges, onNodeClick }) {
 
         // Add edges
         edges.forEach((edge, index) => {
+            // Set different colors based on edge type
+            let edgeColor = "#dadada"; // default
+
+            if (edge.type) {
+                if (edge.type === "complementary") {
+                    edgeColor = "#4caf50"; // green for complementary
+                } else if (edge.type === "substitute") {
+                    edgeColor = "#2196f3"; // blue for substitute
+                }
+            }
+
             graph.addEdge(edge.source, edge.target, {
                 size: 2,
-                color: "#dadada",
+                color: edgeColor,
+                // Don't set the type property for Sigma, as it causes errors
+                // Just store our custom type as a different property for reference
+                edgeType: edge.type || "default",
             });
         });
 
@@ -115,6 +213,37 @@ function GrapherWrapper({ nodes, edges, onNodeClick }) {
         >
             <div className="graph-controls">
                 <div>Zoom level: {Math.round((1 / zoomRatio) * 100)}%</div>
+
+                <div className="graph-legend">
+                    <div className="legend-item">
+                        <span
+                            className="legend-color"
+                            style={{ backgroundColor: "#4285f4" }}
+                        ></span>
+                        <span>User</span>
+                    </div>
+                    <div className="legend-item">
+                        <span
+                            className="legend-color"
+                            style={{ backgroundColor: "#34a853" }}
+                        ></span>
+                        <span>Product</span>
+                    </div>
+                    <div className="legend-item">
+                        <span
+                            className="legend-line"
+                            style={{ backgroundColor: "#4caf50" }}
+                        ></span>
+                        <span>Complementary</span>
+                    </div>
+                    <div className="legend-item">
+                        <span
+                            className="legend-line"
+                            style={{ backgroundColor: "#2196f3" }}
+                        ></span>
+                        <span>Substitute</span>
+                    </div>
+                </div>
             </div>
             <div
                 ref={containerRef}

@@ -11,8 +11,8 @@ app = Flask(__name__)
 CORS(app) 
 tokenizer = AutoTokenizer.from_pretrained("hyp1231/blair-roberta-large")
 model = AutoModel.from_pretrained("hyp1231/blair-roberta-large")
-product_descriptions_df = pd.read_parquet("../data/updated_sample_item_info.parquet")
-item_sim_df = pd.read_parquet("../data/sample_item_sim.parquet", engine = "fastparquet")
+product_descriptions_df = pd.read_parquet("./data/updated_sample_item_info.parquet")
+item_sim_df = pd.read_parquet("./data/sample_item_sim.parquet", engine = "fastparquet")
 print("finished loading resources")
 def get_children_nodes(parent_id, complementary = True):
     def get_similar_products(product_id, k=10):

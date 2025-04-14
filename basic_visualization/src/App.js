@@ -10,6 +10,7 @@ function App() {
     const [items, setItems] = useState(new Map());
     const [selectedNode, setSelectedNode] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [showComplementary, setShowComplementary] = useState(true);
 
     useEffect(() => {
         // Load recommendations data
@@ -77,26 +78,100 @@ function App() {
         });
     }, []);
 
-    const getChildrenNodes = async (parentId, complementary = true) => {
+    const fetchChildrenNodes = async (productId, complementary = true) => {
         try {
             const response = await fetch("http://localhost:5001/get_children", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ parentId, complementary }),
+                body: JSON.stringify({
+                    parentId: productId,
+                    complementary: complementary,
+                }),
             });
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            const childrenNodes = await response.json();
-            console.log("Received children nodes:", childrenNodes);
-            return childrenNodes;
+
+            const data = await response.json();
+            console.log("Fetched children nodes:", data);
+            return data; // array of recommended product_ids
         } catch (error) {
-            console.error("Failed to fetch children nodes:", error);
+            console.error("Error fetching recommendations:", error);
             return [];
         }
     };
+
+    useEffect(() => {
+        if (selectedNode && selectedNode.type === "product") {
+            fetchChildrenNodes(selectedNode.id, showComplementary).then(
+                (recProductIds) => {
+                    if (!recProductIds || recProductIds.length === 0) return;
+
+                    console.log(
+                        `${
+                            showComplementary ? "Complementary" : "Substitute"
+                        } recommendations for`,
+                        selectedNode.id,
+                        recProductIds
+                    );
+
+                    // Filter out IDs that are already in the graph
+                    const existingNodeIds = new Set(
+                        graphData.nodes.map((node) => node.id)
+                    );
+                    const newRecommendations = recProductIds.filter(
+                        (id) => !existingNodeIds.has(id)
+                    );
+
+                    if (newRecommendations.length === 0) return;
+
+                    // Get item details for new recommendations
+                    const recommendedItems = newRecommendations
+                        .map((id) => items.get(id))
+                        .filter(Boolean);
+
+                    if (recommendedItems.length === 0) return;
+
+                    // Create new nodes for the recommendations
+                    const newNodes = recommendedItems.map((item) => ({
+                        id: item.product_id
+                            ? item.product_id.trim()
+                            : item.product_id,
+                        label: item.title || `Product ${item.product_id}`,
+                        level: 2, // These are one level deeper than the parent
+                        type: "product",
+                        parentId: selectedNode.id, // Track parent for better positioning
+                        data: {
+                            title: item.title,
+                            description: item.description,
+                            images: item.images,
+                        },
+                    }));
+
+                    // Create new edges from the selected node to each recommendation
+                    const newEdges = recommendedItems.map((item) => ({
+                        source: selectedNode.id,
+                        target: item.product_id,
+                        type: showComplementary
+                            ? "complementary"
+                            : "substitute",
+                    }));
+
+                    // Update the graph data with new nodes and edges
+                    setGraphData((prevGraphData) => ({
+                        nodes: [...prevGraphData.nodes, ...newNodes],
+                        edges: [...prevGraphData.edges, ...newEdges],
+                    }));
+
+                    // Also update recommendations for display in the panel
+                    setRecommendations(recommendedItems);
+                }
+            );
+        }
+    }, [selectedNode, graphData.nodes, items, showComplementary]);
 
     const processDescription = (description) => {
         if (!description) return "no description provided";
@@ -235,6 +310,33 @@ function App() {
         [graphData.nodes]
     );
 
+    // Fix the reset button by properly creating a new Event and clearing the user ID
+    const resetGraph = () => {
+        // Clear the graph data
+        setGraphData({ nodes: [], edges: [] });
+
+        // Clear the user ID input
+        setUserId("");
+
+        // Reset selected node
+        setSelectedNode(null);
+
+        // Reset recommendations to the original loaded data
+        // This is critical - if recommendations array is empty, new user lookups won't work
+        Papa.parse("/user_recommendations.csv", {
+            download: true,
+            header: true,
+            dynamicTyping: false,
+            complete: (results) => {
+                console.log("Reloaded recommendations after reset");
+                setRecommendations(results.data);
+            },
+            error: (err) => {
+                console.error("Error reloading recommendations:", err);
+            },
+        });
+    };
+
     return (
         <div className="app-container">
             <header className="app-header">
@@ -252,6 +354,15 @@ function App() {
                         <button type="submit" className="submit-button">
                             Show Recommendations
                         </button>
+                        {graphData.nodes.length > 0 && (
+                            <button
+                                type="button"
+                                className="reset-button"
+                                onClick={resetGraph}
+                            >
+                                Reset Graph
+                            </button>
+                        )}
                     </form>
                 )}
             </header>
@@ -264,13 +375,27 @@ function App() {
             ) : (
                 <div className="main-content">
                     <div className="visualization-container">
+                        <div className="recommendation-type-toggle">
+                            <div className="toggle-label">Substitute</div>
+                            <label className="switch">
+                                <input
+                                    type="checkbox"
+                                    checked={showComplementary}
+                                    onChange={() =>
+                                        setShowComplementary(!showComplementary)
+                                    }
+                                />
+                                <span className="slider round"></span>
+                            </label>
+                            <div className="toggle-label">Complementary</div>
+                        </div>
                         <GrapherWrapper
                             nodes={graphData.nodes}
                             edges={graphData.edges}
                             onNodeClick={handleNodeClick}
                         />
                     </div>
-                    
+
                     {selectedNode && (
                         <div className="node-details-panel">
                             <h3>
