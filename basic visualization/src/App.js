@@ -46,6 +46,26 @@ function App() {
       }
     });
   }, []);
+  const getChildrenNodes = async (parentId, complementary = true) => {
+    try {
+      const response = await fetch("http://localhost:5001/get_children", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ parentId, complementary })
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const childrenNodes = await response.json();
+      console.log("Received children nodes:", childrenNodes);
+      return childrenNodes;
+    } catch (error) {
+      console.error("Failed to fetch children nodes:", error);
+      return [];
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
