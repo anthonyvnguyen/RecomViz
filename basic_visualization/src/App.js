@@ -69,6 +69,14 @@ function App() {
             return [];
         }
     };
+    
+    // // Temporary useEffect to test the getChildrenNodes function when the component mounts.
+    // useEffect(() => {
+    //     // Test call: Replace "test-parent" with an appropriate test id as needed.
+    //     getChildrenNodes("test-parent", true).then((children) => {
+    //     console.log("Sample call result for children nodes:", children);
+    //     });
+    // }, []);
 
     const handleSubmit = (e) => {
         e.preventDefault();
