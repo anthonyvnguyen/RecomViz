@@ -32,7 +32,7 @@ def validate_row(row_num, row):
 
 def main():
     try:
-        df = pd.read_csv("sample_item_info.csv", quoting=csv.QUOTE_ALL)
+        df = pd.read_csv("../data/updated_sample_item_info.csv", quoting=csv.QUOTE_ALL)
     except Exception as e:
         print(f"❌ Failed to read CSV: {e}")
         return

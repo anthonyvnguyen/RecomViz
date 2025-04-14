@@ -102,16 +102,16 @@ def clean_description(desc):
 def main():
     # Define paths with flexibility
     data_dir = Path("../data")
-    file_path = data_dir / "sample_item_info.parquet"
+    file_path = data_dir / "updated_sample_item_info.parquet"
     
     # Check if file exists and try alternatives if needed
     if not file_path.exists():
         print(f"File not found at {file_path}")
         alternative_paths = [
-            Path("./sample_item_info.parquet"),
-            Path("../../data/sample_item_info.parquet"),
-            Path("./data/sample_item_info.parquet"),
-            Path("data/sample_item_info.parquet")  # Added for the project root case
+            Path("./updated_sample_item_info.parquet"),
+            Path("../../data/updated_sample_item_info.parquet"),
+            Path("./data/updated_sample_item_info.parquet"),
+            Path("data/updated_sample_item_info.parquet")  # Added for the project root case
         ]
         
         for alt_path in alternative_paths:
