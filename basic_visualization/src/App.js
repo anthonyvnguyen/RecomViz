@@ -11,16 +11,12 @@ function App() {
     const [selectedNode, setSelectedNode] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [showComplementary, setShowComplementary] = useState(true);
-    // Track which nodes have already been expanded
     const [expandedNodes, setExpandedNodes] = useState(new Set());
-    // New state for tracking recommendation generation status
     const [recGenerationStatus, setRecGenerationStatus] = useState({
         status: "none", // "none", "generating", "complete"
         nodeId: null,
     });
-    // New state for user ratings
     const [userRatings, setUserRatings] = useState([]);
-    // New state for selected product from dropdown
     const [selectedRatedProduct, setSelectedRatedProduct] = useState(null);
 
     useEffect(() => {
@@ -28,7 +24,7 @@ function App() {
         Papa.parse("/top10_recommendations_all_users_sample.csv", {
             download: true,
             header: true,
-            dynamicTyping: false, // Keep everything as strings initially
+            dynamicTyping: false,
             complete: (results) => {
                 console.log(
                     "Loaded recommendations:",
@@ -36,23 +32,21 @@ function App() {
                 );
                 setRecommendations(results.data);
 
-                // Load product info data
+
                 Papa.parse("/sample_item_info.csv", {
                     download: true,
                     header: true,
-                    dynamicTyping: false, // Keep everything as strings to ensure consistent key type
+                    dynamicTyping: false,
                     complete: (itemResults) => {
                         console.log(
                             "Loaded item info data sample:",
                             itemResults.data.slice(0, 5)
                         );
 
-                        // Create a Map with product_id as string keys
                         const itemsMap = new Map();
 
                         itemResults.data.forEach((item) => {
                             if (item && item.product_id) {
-                                // Use clean string as key
                                 const productId = item.product_id.trim();
                                 itemsMap.set(productId, item);
                             }
@@ -64,7 +58,6 @@ function App() {
                             "items"
                         );
 
-                        // Test lookup with a few sample product IDs from recommendations
                         if (results.data.length > 0) {
                             const sampleRecId = results.data[0].product_id;
                             console.log(
@@ -75,7 +68,7 @@ function App() {
 
                         setItems(itemsMap);
 
-                        // Load user ratings data
+                        
                         Papa.parse("/sample_user_ratings.csv", {
                             download: true,
                             header: true,
@@ -136,16 +129,13 @@ function App() {
         }
     };
 
-    // New function to handle recommendation generation button click
     const handleGenerateRecommendations = async () => {
         if (!selectedNode || selectedNode.type !== "product") return;
 
-        // Check if this node has already been expanded with the current recommendation type
         const nodeKey = `${selectedNode.id}-${
             showComplementary ? "comp" : "subst"
         }`;
 
-        // Skip fetching if we've already expanded this node with this recommendation type
         if (expandedNodes.has(nodeKey)) {
             console.log(
                 `Node ${selectedNode.id} already expanded for ${
@@ -155,7 +145,6 @@ function App() {
             return;
         }
 
-        // Set status to generating
         setRecGenerationStatus({
             status: "generating",
             nodeId: selectedNode.id,
@@ -167,7 +156,6 @@ function App() {
         );
 
         if (!recProductIds || recProductIds.length === 0) {
-            // Set status to complete even if no recommendations
             setRecGenerationStatus({
                 status: "complete",
                 nodeId: selectedNode.id,
@@ -549,25 +537,47 @@ function App() {
 
     // Render the product details panel - used for both clicked nodes and dropdown-selected products
     const renderProductDetails = (product) => {
+        console.log('Image URLs for product', product.id, ':', product.data.images);
+
+        const getFirstImageUrl = (images) => {
+            try {
+                const imgData = typeof images === 'string' ? JSON.parse(images) : images;
+                if (imgData?.hi_res?.[0]) return imgData.hi_res[0];
+                if (imgData?.large?.[0]) return imgData.large[0];
+                if (imgData?.thumb?.[0]) return imgData.thumb[0];
+              
+                return null;
+            } catch (e) {
+                console.error('Error parsing images:', e);
+                return null;
+            }
+          };
+        
+        const imageUrl = getFirstImageUrl(product.data.images);
+
         return (
             <div className="product-details">
                 <div className="detail-header">
                     <h4>{product.data.title || "Unknown Product"}</h4>
-                    {(product.data.predictedRating || product.data.rating) && (
+                    {/* {(product.data.predictedRating || product.data.rating) && (
                         <div className="rating-badge">
                             {product.data.predictedRating
                                 ? product.data.predictedRating.toFixed(2)
                                 : product.data.rating}
                             <span className="rating-star">★</span>
                         </div>
-                    )}
+                    )} */}
                 </div>
 
-                {product.data.images && (
+                {imageUrl && (
                     <div className="product-image">
                         <img
-                            src={product.data.images}
+                            src={imageUrl}
                             alt={product.data.title}
+                            onError={(e) => {
+                                console.error('Failed to load image:', imageUrl);
+                                e.target.style.display = 'none';
+                            }}
                         />
                     </div>
                 )}
