@@ -13,6 +13,11 @@ function App() {
     const [showComplementary, setShowComplementary] = useState(true);
     // Track which nodes have already been expanded
     const [expandedNodes, setExpandedNodes] = useState(new Set());
+    // New state for tracking recommendation generation status
+    const [recGenerationStatus, setRecGenerationStatus] = useState({
+        status: "none", // "none", "generating", "complete"
+        nodeId: null,
+    });
 
     useEffect(() => {
         // Load recommendations data
@@ -106,127 +111,156 @@ function App() {
         }
     };
 
-    useEffect(() => {
-        if (selectedNode && selectedNode.type === "product") {
-            // Check if this node has already been expanded with the current recommendation type
-            const nodeKey = `${selectedNode.id}-${
-                showComplementary ? "comp" : "subst"
-            }`;
+    // New function to handle recommendation generation button click
+    const handleGenerateRecommendations = async () => {
+        if (!selectedNode || selectedNode.type !== "product") return;
 
-            // Skip fetching if we've already expanded this node with this recommendation type
-            if (expandedNodes.has(nodeKey)) {
-                console.log(
-                    `Node ${selectedNode.id} already expanded for ${
-                        showComplementary ? "complementary" : "substitute"
-                    } recommendations`
-                );
-                return;
-            }
+        // Check if this node has already been expanded with the current recommendation type
+        const nodeKey = `${selectedNode.id}-${
+            showComplementary ? "comp" : "subst"
+        }`;
 
-            fetchChildrenNodes(selectedNode.id, showComplementary).then(
-                (recProductIds) => {
-                    if (!recProductIds || recProductIds.length === 0) return;
-
-                    console.log(
-                        `${
-                            showComplementary ? "Complementary" : "Substitute"
-                        } recommendations for`,
-                        selectedNode.id,
-                        recProductIds
-                    );
-
-                    // Create a map of existing nodes to quickly check for duplicates
-                    const existingNodeMap = new Map();
-                    graphData.nodes.forEach((node) => {
-                        existingNodeMap.set(node.id, node);
-                    });
-
-                    // Create a map of existing edges to quickly check for duplicates
-                    const existingEdgeMap = new Set();
-                    graphData.edges.forEach((edge) => {
-                        existingEdgeMap.add(`${edge.source}-${edge.target}`);
-                    });
-
-                    // Filter out IDs that are already in the graph
-                    const newRecommendations = recProductIds.filter(
-                        (id) => !existingNodeMap.has(id)
-                    );
-
-                    // Get item details for new recommendations
-                    const recommendedItems = newRecommendations
-                        .map((id) => items.get(id))
-                        .filter(Boolean);
-
-                    // Create new nodes for the recommendations
-                    const newNodes = recommendedItems.map((item) => {
-                        const cleanId = item.product_id.trim();
-                        return {
-                            id: cleanId,
-                            label: item.title || `Product ${cleanId}`,
-                            type: "product",
-                            parentId: selectedNode.id,
-                            data: {
-                                title: item.title,
-                                description: item.description,
-                                images: item.images,
-                            },
-                        };
-                    });
-
-                    // Create new edges for all recommendations (including those already in the graph)
-                    // This ensures connections are made to existing nodes too
-                    const newEdges = [];
-
-                    recProductIds.forEach((id) => {
-                        // Create a clean ID to match with our node IDs
-                        const cleanId = id.trim();
-
-                        // Skip duplicate edges
-                        const edgeKey = `${selectedNode.id}-${cleanId}`;
-                        if (!existingEdgeMap.has(edgeKey)) {
-                            newEdges.push({
-                                source: selectedNode.id,
-                                target: cleanId,
-                                type: showComplementary
-                                    ? "complementary"
-                                    : "substitute",
-                            });
-                        }
-                    });
-
-                    // Only update the graph if we have new nodes or edges to add
-                    if (newNodes.length > 0 || newEdges.length > 0) {
-                        setGraphData((prevGraphData) => ({
-                            nodes: [...prevGraphData.nodes, ...newNodes],
-                            edges: [...prevGraphData.edges, ...newEdges],
-                        }));
-                    }
-
-                    // Mark this node as expanded with this recommendation type
-                    setExpandedNodes((prev) => {
-                        const newSet = new Set(prev);
-                        newSet.add(nodeKey);
-                        return newSet;
-                    });
-
-                    // Update the displayed recommendations in the panel
-                    // Show all recommendations for this node, including ones that were already in the graph
-                    const allRecommendedItems = recProductIds
-                        .map((id) => items.get(id.trim()))
-                        .filter(Boolean);
-
-                    setRecommendations(allRecommendedItems);
-                }
+        // Skip fetching if we've already expanded this node with this recommendation type
+        if (expandedNodes.has(nodeKey)) {
+            console.log(
+                `Node ${selectedNode.id} already expanded for ${
+                    showComplementary ? "complementary" : "substitute"
+                } recommendations`
             );
+            return;
         }
-    }, [
-        selectedNode,
-        graphData.nodes,
-        graphData.edges,
-        items,
-        showComplementary,
-        expandedNodes,
-    ]);
+
+        // Set status to generating
+        setRecGenerationStatus({
+            status: "generating",
+            nodeId: selectedNode.id,
+        });
+
+        const recProductIds = await fetchChildrenNodes(
+            selectedNode.id,
+            showComplementary
+        );
+
+        if (!recProductIds || recProductIds.length === 0) {
+            // Set status to complete even if no recommendations
+            setRecGenerationStatus({
+                status: "complete",
+                nodeId: selectedNode.id,
+            });
+
+            // Reset status after 3 seconds
+            setTimeout(() => {
+                setRecGenerationStatus({
+                    status: "none",
+                    nodeId: null,
+                });
+            }, 3000);
+
+            return;
+        }
+
+        console.log(
+            `${
+                showComplementary ? "Complementary" : "Substitute"
+            } recommendations for`,
+            selectedNode.id,
+            recProductIds
+        );
+
+        // Create a map of existing nodes to quickly check for duplicates
+        const existingNodeMap = new Map();
+        graphData.nodes.forEach((node) => {
+            existingNodeMap.set(node.id, node);
+        });
+
+        // Create a map of existing edges to quickly check for duplicates
+        const existingEdgeMap = new Set();
+        graphData.edges.forEach((edge) => {
+            existingEdgeMap.add(`${edge.source}-${edge.target}`);
+        });
+
+        // Filter out IDs that are already in the graph
+        const newRecommendations = recProductIds.filter(
+            (id) => !existingNodeMap.has(id)
+        );
+
+        // Get item details for new recommendations
+        const recommendedItems = newRecommendations
+            .map((id) => items.get(id))
+            .filter(Boolean);
+
+        // Create new nodes for the recommendations
+        const newNodes = recommendedItems.map((item) => {
+            const cleanId = item.product_id.trim();
+            return {
+                id: cleanId,
+                label: item.title || `Product ${cleanId}`,
+                type: "product",
+                parentId: selectedNode.id,
+                data: {
+                    title: item.title,
+                    description: item.description,
+                    images: item.images,
+                },
+            };
+        });
+
+        // Create new edges for all recommendations (including those already in the graph)
+        // This ensures connections are made to existing nodes too
+        const newEdges = [];
+
+        recProductIds.forEach((id) => {
+            // Create a clean ID to match with our node IDs
+            const cleanId = id.trim();
+
+            // Skip duplicate edges
+            const edgeKey = `${selectedNode.id}-${cleanId}`;
+            if (!existingEdgeMap.has(edgeKey)) {
+                newEdges.push({
+                    source: selectedNode.id,
+                    target: cleanId,
+                    type: showComplementary ? "complementary" : "substitute",
+                });
+            }
+        });
+
+        // Only update the graph if we have new nodes or edges to add
+        if (newNodes.length > 0 || newEdges.length > 0) {
+            setGraphData((prevGraphData) => ({
+                nodes: [...prevGraphData.nodes, ...newNodes],
+                edges: [...prevGraphData.edges, ...newEdges],
+            }));
+        }
+
+        // Mark this node as expanded with this recommendation type
+        setExpandedNodes((prev) => {
+            const newSet = new Set(prev);
+            newSet.add(nodeKey);
+            return newSet;
+        });
+
+        // Update the displayed recommendations in the panel
+        // Show all recommendations for this node, including ones that were already in the graph
+        const allRecommendedItems = recProductIds
+            .map((id) => items.get(id.trim()))
+            .filter(Boolean);
+
+        setRecommendations(allRecommendedItems);
+
+        // Set status to complete
+        setRecGenerationStatus({
+            status: "complete",
+            nodeId: selectedNode.id,
+        });
+
+        // Reset status after 3 seconds
+        setTimeout(() => {
+            setRecGenerationStatus({
+                status: "none",
+                nodeId: null,
+            });
+        }, 3000);
+    };
 
     const processDescription = (description) => {
         if (!description) return "no description provided";
@@ -383,6 +417,12 @@ function App() {
         // Reset expanded nodes
         setExpandedNodes(new Set());
 
+        // Reset recommendation status
+        setRecGenerationStatus({
+            status: "none",
+            nodeId: null,
+        });
+
         // Reset recommendations to the original loaded data
         // This is critical - if recommendations array is empty, new user lookups won't work
         Papa.parse("/user_recommendations.csv", {
@@ -436,6 +476,21 @@ function App() {
                 </div>
             ) : (
                 <div className="main-content">
+                    {/* Notification area for recommendation generation status */}
+                    {recGenerationStatus.status !== "none" && (
+                        <div
+                            className={`recommendation-notification ${
+                                recGenerationStatus.status === "complete"
+                                    ? "complete"
+                                    : ""
+                            }`}
+                        >
+                            {recGenerationStatus.status === "generating"
+                                ? `Generating recommendations for ${recGenerationStatus.nodeId}...`
+                                : `Recommendations complete for ${recGenerationStatus.nodeId}`}
+                        </div>
+                    )}
+
                     <div className="visualization-container">
                         <div className="recommendation-type-toggle">
                             <div className="toggle-label">Substitute</div>
@@ -460,11 +515,42 @@ function App() {
 
                     {selectedNode && (
                         <div className="node-details-panel">
-                            <h3>
-                                {selectedNode.type === "user"
-                                    ? "User Details"
-                                    : "Product Details"}
-                            </h3>
+                            <div className="node-details-header">
+                                <h3>
+                                    {selectedNode.type === "user"
+                                        ? "User Details"
+                                        : "Product Details"}
+                                </h3>
+
+                                {/* Add recommendation button for product nodes */}
+                                {selectedNode.type === "product" && (
+                                    <button
+                                        className="generate-recs-button"
+                                        onClick={handleGenerateRecommendations}
+                                        disabled={expandedNodes.has(
+                                            `${selectedNode.id}-${
+                                                showComplementary
+                                                    ? "comp"
+                                                    : "subst"
+                                            }`
+                                        )}
+                                    >
+                                        {expandedNodes.has(
+                                            `${selectedNode.id}-${
+                                                showComplementary
+                                                    ? "comp"
+                                                    : "subst"
+                                            }`
+                                        )
+                                            ? "Recommendations Loaded"
+                                            : `Get ${
+                                                  showComplementary
+                                                      ? "Complementary"
+                                                      : "Substitute"
+                                              } Recommendations`}
+                                    </button>
+                                )}
+                            </div>
 
                             {selectedNode.type === "product" ? (
                                 <div className="product-details">
