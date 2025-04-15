@@ -18,6 +18,10 @@ function App() {
         status: "none", // "none", "generating", "complete"
         nodeId: null,
     });
+    // New state for user ratings
+    const [userRatings, setUserRatings] = useState([]);
+    // New state for selected product from dropdown
+    const [selectedRatedProduct, setSelectedRatedProduct] = useState(null);
 
     useEffect(() => {
         // Load recommendations data
@@ -70,7 +74,28 @@ function App() {
                         }
 
                         setItems(itemsMap);
-                        setIsLoading(false);
+
+                        // Load user ratings data
+                        Papa.parse("/sample_user_ratings.csv", {
+                            download: true,
+                            header: true,
+                            dynamicTyping: false,
+                            complete: (ratingsResults) => {
+                                console.log(
+                                    "Loaded user ratings sample:",
+                                    ratingsResults.data.slice(0, 5)
+                                );
+                                setUserRatings(ratingsResults.data);
+                                setIsLoading(false);
+                            },
+                            error: (err) => {
+                                console.error(
+                                    "Error loading user ratings:",
+                                    err
+                                );
+                                setIsLoading(false);
+                            },
+                        });
                     },
                     error: (err) => {
                         console.error("Error loading items:", err);
@@ -262,6 +287,53 @@ function App() {
         }, 3000);
     };
 
+    // Function to handle selection of a product from the dropdown
+    const handleRatedProductSelect = (event) => {
+        const productId = event.target.value;
+        if (!productId) {
+            setSelectedRatedProduct(null);
+            return;
+        }
+
+        const productInfo = items.get(productId);
+        if (productInfo) {
+            // Set the selected product with all available details
+            setSelectedRatedProduct({
+                id: productId,
+                type: "product",
+                data: {
+                    title: productInfo.title,
+                    description: productInfo.description,
+                    images: productInfo.images,
+                    // Add rating info
+                    rating:
+                        userRatings.find(
+                            (rating) =>
+                                rating.product_id === productId &&
+                                rating.user_id ===
+                                    selectedNode.id.replace("user-", "")
+                        )?.rating || "N/A",
+                },
+            });
+        } else {
+            console.log(`No product info found for ${productId}`);
+            setSelectedRatedProduct({
+                id: productId,
+                type: "product",
+                data: {
+                    title: `Product ${productId}`,
+                    rating:
+                        userRatings.find(
+                            (rating) =>
+                                rating.product_id === productId &&
+                                rating.user_id ===
+                                    selectedNode.id.replace("user-", "")
+                        )?.rating || "N/A",
+                },
+            });
+        }
+    };
+
     const processDescription = (description) => {
         if (!description) return "no description provided";
 
@@ -361,6 +433,9 @@ function App() {
         // Reset expanded nodes when starting a new graph
         setExpandedNodes(new Set());
 
+        // Reset selected rated product
+        setSelectedRatedProduct(null);
+
         // Automatically select the user node to display recommendation count
         const userNodeId = `user-${userId}`;
         setSelectedNode({
@@ -382,6 +457,9 @@ function App() {
             }
 
             console.log("Found node:", node);
+
+            // Reset selected rated product when a new node is clicked
+            setSelectedRatedProduct(null);
 
             // For product nodes, get info from node data rather than trying to look up again
             if (node.type === "product") {
@@ -414,6 +492,9 @@ function App() {
         // Reset selected node
         setSelectedNode(null);
 
+        // Reset selected rated product
+        setSelectedRatedProduct(null);
+
         // Reset expanded nodes
         setExpandedNodes(new Set());
 
@@ -437,6 +518,58 @@ function App() {
                 console.error("Error reloading recommendations:", err);
             },
         });
+    };
+
+    // Get user's rated products from userRatings data
+    const getUserRatedProducts = (userId) => {
+        if (!userId) return [];
+
+        const userIdWithoutPrefix = userId.replace("user-", "");
+        const ratedProducts = userRatings.filter(
+            (rating) => rating.user_id === userIdWithoutPrefix
+        );
+
+        console.log(
+            `Found ${ratedProducts.length} rated products for user ${userIdWithoutPrefix}`
+        );
+        return ratedProducts;
+    };
+
+    // Render the product details panel - used for both clicked nodes and dropdown-selected products
+    const renderProductDetails = (product) => {
+        return (
+            <div className="product-details">
+                <div className="detail-header">
+                    <h4>{product.data.title || "Unknown Product"}</h4>
+                    {(product.data.predictedRating || product.data.rating) && (
+                        <div className="rating-badge">
+                            {product.data.predictedRating
+                                ? product.data.predictedRating.toFixed(2)
+                                : product.data.rating}
+                            <span className="rating-star">★</span>
+                        </div>
+                    )}
+                </div>
+
+                {product.data.images && (
+                    <div className="product-image">
+                        <img
+                            src={product.data.images}
+                            alt={product.data.title}
+                        />
+                    </div>
+                )}
+
+                <div className="product-id">ID: {product.id}</div>
+
+                {product.data.description && (
+                    <div className="product-description">
+                        <h5>Description</h5>
+                        <p>{processDescription(product.data.description)}</p>
+                    </div>
+                )}
+            </div>
+        );
     };
 
     return (
@@ -553,49 +686,7 @@ function App() {
                             </div>
 
                             {selectedNode.type === "product" ? (
-                                <div className="product-details">
-                                    <div className="detail-header">
-                                        <h4>
-                                            {selectedNode.data.title ||
-                                                "Unknown Product"}
-                                        </h4>
-                                        {selectedNode.data.predictedRating && (
-                                            <div className="rating-badge">
-                                                {selectedNode.data.predictedRating.toFixed(
-                                                    2
-                                                )}
-                                                <span className="rating-star">
-                                                    ★
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {selectedNode.data.images && (
-                                        <div className="product-image">
-                                            <img
-                                                src={selectedNode.data.images}
-                                                alt={selectedNode.data.title}
-                                            />
-                                        </div>
-                                    )}
-
-                                    <div className="product-id">
-                                        ID: {selectedNode.id}
-                                    </div>
-
-                                    {selectedNode.data.description && (
-                                        <div className="product-description">
-                                            <h5>Description</h5>
-                                            <p>
-                                                {processDescription(
-                                                    selectedNode.data
-                                                        .description
-                                                )}
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
+                                renderProductDetails(selectedNode)
                             ) : (
                                 <div className="user-details">
                                     <div className="user-icon">👤</div>
@@ -613,6 +704,63 @@ function App() {
                                         }{" "}
                                         recommendations
                                     </div>
+
+                                    {/* Add dropdown for user's rated products */}
+                                    <div className="user-rated-products">
+                                        <h5>Rated Products</h5>
+                                        <select
+                                            className="rated-products-dropdown"
+                                            onChange={handleRatedProductSelect}
+                                            value={
+                                                selectedRatedProduct
+                                                    ? selectedRatedProduct.id
+                                                    : ""
+                                            }
+                                        >
+                                            <option value="">
+                                                Select a product
+                                            </option>
+                                            {getUserRatedProducts(
+                                                selectedNode.id
+                                            ).map((rating) => {
+                                                const productInfo = items.get(
+                                                    rating.product_id
+                                                );
+                                                const displayName = productInfo
+                                                    ? `${productInfo.title.substring(
+                                                          0,
+                                                          30
+                                                      )}${
+                                                          productInfo.title
+                                                              .length > 30
+                                                              ? "..."
+                                                              : ""
+                                                      } (${rating.rating}★)`
+                                                    : `Product ${rating.product_id} (${rating.rating}★)`;
+
+                                                return (
+                                                    <option
+                                                        key={rating.product_id}
+                                                        value={
+                                                            rating.product_id
+                                                        }
+                                                    >
+                                                        {displayName}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    </div>
+
+                                    {/* Show selected product details if any */}
+                                    {selectedRatedProduct && (
+                                        <div className="rated-product-details">
+                                            <h4>Rated Product Details</h4>
+                                            {renderProductDetails(
+                                                selectedRatedProduct
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

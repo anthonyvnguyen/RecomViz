@@ -17,6 +17,7 @@ print("finished loading resources")
 def get_children_nodes(parent_id, complementary = True):
     def get_similar_products(product_id, k=10):
         """Returns top-k similar products based on item similarity."""
+        print("getting similar products")
         if product_id not in item_sim_df:
             return []
         return item_sim_df[product_id].nlargest(k + 1)[1:].index.tolist()  # Skip itself
@@ -31,6 +32,7 @@ def get_children_nodes(parent_id, complementary = True):
         return None
     def get_complementary_products_blair(input_product, similar_products, complementary, k=3):
         """Use BLAIR to find the most complementary products among similar ones."""
+        print("getting complementary products")
         input_desc = get_product_description(input_product)
         similar_descs = [get_product_description(pid) for pid in similar_products]
 
