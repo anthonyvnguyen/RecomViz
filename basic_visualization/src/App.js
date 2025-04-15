@@ -32,7 +32,6 @@ function App() {
                 );
                 setRecommendations(results.data);
 
-
                 Papa.parse("/sample_item_info.csv", {
                     download: true,
                     header: true,
@@ -68,7 +67,6 @@ function App() {
 
                         setItems(itemsMap);
 
-                        
                         Papa.parse("/sample_user_ratings.csv", {
                             download: true,
                             header: true,
@@ -537,22 +535,28 @@ function App() {
 
     // Render the product details panel - used for both clicked nodes and dropdown-selected products
     const renderProductDetails = (product) => {
-        console.log('Image URLs for product', product.id, ':', product.data.images);
+        console.log(
+            "Image URLs for product",
+            product.id,
+            ":",
+            product.data.images
+        );
 
         const getFirstImageUrl = (images) => {
             try {
-                const imgData = typeof images === 'string' ? JSON.parse(images) : images;
+                const imgData =
+                    typeof images === "string" ? JSON.parse(images) : images;
                 if (imgData?.hi_res?.[0]) return imgData.hi_res[0];
                 if (imgData?.large?.[0]) return imgData.large[0];
                 if (imgData?.thumb?.[0]) return imgData.thumb[0];
-              
+
                 return null;
             } catch (e) {
-                console.error('Error parsing images:', e);
+                console.error("Error parsing images:", e);
                 return null;
             }
-          };
-        
+        };
+
         const imageUrl = getFirstImageUrl(product.data.images);
 
         return (
@@ -575,8 +579,11 @@ function App() {
                             src={imageUrl}
                             alt={product.data.title}
                             onError={(e) => {
-                                console.error('Failed to load image:', imageUrl);
-                                e.target.style.display = 'none';
+                                console.error(
+                                    "Failed to load image:",
+                                    imageUrl
+                                );
+                                e.target.style.display = "none";
                             }}
                         />
                     </div>
