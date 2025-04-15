@@ -121,19 +121,40 @@ body {
 .graph-controls {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     padding: 0 10px;
+    margin-bottom: 10px;
+}
+
+/* Legend container */
+.legend-container {
+    display: flex;
+    gap: 20px;
 }
 
 .graph-legend {
     display: flex;
+    flex-wrap: wrap;
     gap: 15px;
+    background-color: white;
+    padding: 10px 15px;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.main-legend {
+    min-width: 260px;
+}
+
+.hover-legend {
+    min-width: 200px;
 }
 
 .legend-item {
     display: flex;
     align-items: center;
     font-size: 12px;
+    margin-right: 5px;
 }
 
 .legend-color {
@@ -147,6 +168,21 @@ body {
     width: 20px;
     height: 3px;
     margin-right: 5px;
+}
+
+.legend-divider {
+    width: 100%;
+    height: 1px;
+    background-color: #e0e0e0;
+    margin: 5px 0;
+}
+
+.legend-subheading {
+    width: 100%;
+    font-size: 12px;
+    font-weight: 500;
+    color: #666;
+    margin-bottom: 5px;
 }
 
 /* Node details panel */
@@ -275,6 +311,27 @@ body {
     box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
 }
 
+/* Tree layout specific styles */
+.sigma-container {
+    overflow: visible !important;
+}
+
+.tree-node {
+    transition: all 0.3s ease;
+}
+
+.tree-edge {
+    transition: all 0.3s ease;
+    stroke-dasharray: 5;
+    animation: dash 20s linear infinite;
+}
+
+@keyframes dash {
+    to {
+        stroke-dashoffset: 1000;
+    }
+}
+
 /* Responsive design */
 @media (min-width: 768px) {
     .main-content {
@@ -307,6 +364,10 @@ body {
 
     .user-id-input {
         flex: 1;
+    }
+
+    .legend-container {
+        flex-direction: column;
     }
 }
 

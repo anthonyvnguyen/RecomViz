@@ -11,6 +11,8 @@ function App() {
     const [selectedNode, setSelectedNode] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [showComplementary, setShowComplementary] = useState(true);
+    // Track which nodes have already been expanded
+    const [expandedNodes, setExpandedNodes] = useState(new Set());
 
     useEffect(() => {
         // Load recommendations data
@@ -106,6 +108,21 @@ function App() {
 
     useEffect(() => {
         if (selectedNode && selectedNode.type === "product") {
+            // Check if this node has already been expanded with the current recommendation type
+            const nodeKey = `${selectedNode.id}-${
+                showComplementary ? "comp" : "subst"
+            }`;
+
+            // Skip fetching if we've already expanded this node with this recommendation type
+            if (expandedNodes.has(nodeKey)) {
+                console.log(
+                    `Node ${selectedNode.id} already expanded for ${
+                        showComplementary ? "complementary" : "substitute"
+                    } recommendations`
+                );
+                return;
+            }
+
             fetchChildrenNodes(selectedNode.id, showComplementary).then(
                 (recProductIds) => {
                     if (!recProductIds || recProductIds.length === 0) return;
@@ -118,60 +135,98 @@ function App() {
                         recProductIds
                     );
 
-                    // Filter out IDs that are already in the graph
-                    const existingNodeIds = new Set(
-                        graphData.nodes.map((node) => node.id)
-                    );
-                    const newRecommendations = recProductIds.filter(
-                        (id) => !existingNodeIds.has(id)
-                    );
+                    // Create a map of existing nodes to quickly check for duplicates
+                    const existingNodeMap = new Map();
+                    graphData.nodes.forEach((node) => {
+                        existingNodeMap.set(node.id, node);
+                    });
 
-                    if (newRecommendations.length === 0) return;
+                    // Create a map of existing edges to quickly check for duplicates
+                    const existingEdgeMap = new Set();
+                    graphData.edges.forEach((edge) => {
+                        existingEdgeMap.add(`${edge.source}-${edge.target}`);
+                    });
+
+                    // Filter out IDs that are already in the graph
+                    const newRecommendations = recProductIds.filter(
+                        (id) => !existingNodeMap.has(id)
+                    );
 
                     // Get item details for new recommendations
                     const recommendedItems = newRecommendations
                         .map((id) => items.get(id))
                         .filter(Boolean);
 
-                    if (recommendedItems.length === 0) return;
-
                     // Create new nodes for the recommendations
-                    const newNodes = recommendedItems.map((item) => ({
-                        id: item.product_id
-                            ? item.product_id.trim()
-                            : item.product_id,
-                        label: item.title || `Product ${item.product_id}`,
-                        level: 2, // These are one level deeper than the parent
-                        type: "product",
-                        parentId: selectedNode.id, // Track parent for better positioning
-                        data: {
-                            title: item.title,
-                            description: item.description,
-                            images: item.images,
-                        },
-                    }));
+                    const newNodes = recommendedItems.map((item) => {
+                        const cleanId = item.product_id.trim();
+                        return {
+                            id: cleanId,
+                            label: item.title || `Product ${cleanId}`,
+                            type: "product",
+                            parentId: selectedNode.id,
+                            data: {
+                                title: item.title,
+                                description: item.description,
+                                images: item.images,
+                            },
+                        };
+                    });
 
-                    // Create new edges from the selected node to each recommendation
-                    const newEdges = recommendedItems.map((item) => ({
-                        source: selectedNode.id,
-                        target: item.product_id,
-                        type: showComplementary
-                            ? "complementary"
-                            : "substitute",
-                    }));
+                    // Create new edges for all recommendations (including those already in the graph)
+                    // This ensures connections are made to existing nodes too
+                    const newEdges = [];
 
-                    // Update the graph data with new nodes and edges
-                    setGraphData((prevGraphData) => ({
-                        nodes: [...prevGraphData.nodes, ...newNodes],
-                        edges: [...prevGraphData.edges, ...newEdges],
-                    }));
+                    recProductIds.forEach((id) => {
+                        // Create a clean ID to match with our node IDs
+                        const cleanId = id.trim();
 
-                    // Also update recommendations for display in the panel
-                    setRecommendations(recommendedItems);
+                        // Skip duplicate edges
+                        const edgeKey = `${selectedNode.id}-${cleanId}`;
+                        if (!existingEdgeMap.has(edgeKey)) {
+                            newEdges.push({
+                                source: selectedNode.id,
+                                target: cleanId,
+                                type: showComplementary
+                                    ? "complementary"
+                                    : "substitute",
+                            });
+                        }
+                    });
+
+                    // Only update the graph if we have new nodes or edges to add
+                    if (newNodes.length > 0 || newEdges.length > 0) {
+                        setGraphData((prevGraphData) => ({
+                            nodes: [...prevGraphData.nodes, ...newNodes],
+                            edges: [...prevGraphData.edges, ...newEdges],
+                        }));
+                    }
+
+                    // Mark this node as expanded with this recommendation type
+                    setExpandedNodes((prev) => {
+                        const newSet = new Set(prev);
+                        newSet.add(nodeKey);
+                        return newSet;
+                    });
+
+                    // Update the displayed recommendations in the panel
+                    // Show all recommendations for this node, including ones that were already in the graph
+                    const allRecommendedItems = recProductIds
+                        .map((id) => items.get(id.trim()))
+                        .filter(Boolean);
+
+                    setRecommendations(allRecommendedItems);
                 }
             );
         }
-    }, [selectedNode, graphData.nodes, items, showComplementary]);
+    }, [
+        selectedNode,
+        graphData.nodes,
+        graphData.edges,
+        items,
+        showComplementary,
+        expandedNodes,
+    ]);
 
     const processDescription = (description) => {
         if (!description) return "no description provided";
@@ -224,17 +279,18 @@ function App() {
 
         console.log("User recommendations found:", userRecs.length);
 
+        // Create user node (root of the tree)
         const nodes = [
             {
                 id: `user-${userId}`,
                 label: `User ${userId}`,
-                level: 0,
                 type: "user",
             },
         ];
 
         const edges = [];
 
+        // Add first level of product recommendations
         userRecs.forEach((rec) => {
             // Ensure product_id is a clean string
             const productId = rec.product_id.trim();
@@ -250,8 +306,8 @@ function App() {
             nodes.push({
                 id: productId,
                 label: itemInfo ? itemInfo.title : `Product ${productId}`,
-                level: 1,
                 type: "product",
+                parentId: `user-${userId}`, // Track parent for tree layout
                 data: {
                     predictedRating: parseFloat(rec.predicted_rating),
                     title: itemInfo ? itemInfo.title : null,
@@ -267,6 +323,9 @@ function App() {
         });
 
         setGraphData({ nodes, edges });
+
+        // Reset expanded nodes when starting a new graph
+        setExpandedNodes(new Set());
 
         // Automatically select the user node to display recommendation count
         const userNodeId = `user-${userId}`;
@@ -320,6 +379,9 @@ function App() {
 
         // Reset selected node
         setSelectedNode(null);
+
+        // Reset expanded nodes
+        setExpandedNodes(new Set());
 
         // Reset recommendations to the original loaded data
         // This is critical - if recommendations array is empty, new user lookups won't work
