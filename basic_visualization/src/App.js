@@ -25,7 +25,7 @@ function App() {
 
     useEffect(() => {
         // Load recommendations data
-        Papa.parse("/user_recommendations.csv", {
+        Papa.parse("/top10_recommendations_all_users_sample.csv", {
             download: true,
             header: true,
             dynamicTyping: false, // Keep everything as strings initially
