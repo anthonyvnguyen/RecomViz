@@ -374,6 +374,24 @@ function App() {
         e.preventDefault();
         if (!userId) return;
 
+        // Clear existing graph data first to handle switching between users
+        setGraphData({ nodes: [], edges: [] });
+
+        // Reset expanded nodes when starting a new graph
+        setExpandedNodes(new Set());
+
+        // Reset selected node
+        setSelectedNode(null);
+
+        // Reset selected rated product
+        setSelectedRatedProduct(null);
+
+        // Reset recommendation status
+        setRecGenerationStatus({
+            status: "none",
+            nodeId: null,
+        });
+
         const userRecs = recommendations
             .filter((r) => r.user_id === userId)
             .sort(
@@ -429,12 +447,6 @@ function App() {
         });
 
         setGraphData({ nodes, edges });
-
-        // Reset expanded nodes when starting a new graph
-        setExpandedNodes(new Set());
-
-        // Reset selected rated product
-        setSelectedRatedProduct(null);
 
         // Automatically select the user node to display recommendation count
         const userNodeId = `user-${userId}`;
@@ -506,7 +518,7 @@ function App() {
 
         // Reset recommendations to the original loaded data
         // This is critical - if recommendations array is empty, new user lookups won't work
-        Papa.parse("/user_recommendations.csv", {
+        Papa.parse("/top10_recommendations_all_users_sample.csv", {
             download: true,
             header: true,
             dynamicTyping: false,
