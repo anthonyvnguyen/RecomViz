@@ -1,13 +1,30 @@
+# Welcome to RecomViz! 
+RecomViz is a tool that adds interactivity to Amazon product recommendations. We use matrix factorization techinques for user-item recommendations along with support for SlopeOne enhancement. We provide item-item recommendations as well using cosine-similarity to prefilter products and BLaIR, a transformer model used to create rich embeddings of product descriptions. \
 
-# How to run RecomViz with sample dataset
+The structure of this code repo is as follows: \
+**Recommendation_Models**: ipynb notebooks exploring some of the algorihtms we use for recommendations \
+**backend**: the python backend (Flask server) used to generate our recommendations at runtime \
+**basic_visualization**: the interactive frontend used to generate recommendations \
+**data**: sampeled data files used for the demo, the whole datasets are too large to include \
+**datapreprocessing**: the notebooks and scripts we used to preprocess the user reviews and product metadata
+
+
+
+# Installing RecomViz 
+- Step 1: Clone this repo locally
+- Step 2: Install backend dependencies 
+  ``` pip install flask pandas numpy torch transformers flask-cors ```
+- Step 3:  Setup Node.js, use the following [guide](https://nodejs.org/en/download) if not already installed
+
+# Executing RecomViz with sample dataset
 ### Step 1: Start the Flask Backend 
 - In your terminal, navigate to the backend folder
 - Launch the backend by running ```python app.py```
 - The backend might take a few second to finish setting up, a message will be printed to your terminal when it is ready
-- If you are missing any of the python libraries required to run the backend, [pip install](https://packaging.python.org/en/latest/tutorials/installing-packages/) them as required 
+- If you are still missing any of the python libraries required to run the backend, [pip install](https://packaging.python.org/en/latest/tutorials/installing-packages/) them as required 
 
 ### Step 2: Launch the Frontend 
-- Setup Node.js, use the following [guide](https://nodejs.org/en/download) if not already installed
+- Navigate to basic_visualization folder
 - Install required dependencies with ```npm install```
 - Launch the web server with ```npm start```
 
