@@ -11,7 +11,7 @@ The structure of this code repo is as follows: \
 
 
 # Installing RecomViz 
-- Step 1: Clone this repo locally
+- Step 1: [Clone this repo locally](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)
 - Step 2: Install backend dependencies 
   ``` pip install flask pandas numpy torch transformers flask-cors ```
 - Step 3:  Setup Node.js, use the following [guide](https://nodejs.org/en/download) if not already installed
