@@ -1,3 +1,17 @@
+
+# How to run RecomViz with sample dataset
+### Step 1: Start the Flask Backend 
+- In your terminal, navigate to the backend folder
+- Launch the backend by running ```python app.py```
+- The backend might take a few second to finish setting up, a message will be printed to your terminal when it is ready
+- If you are missing any of the python libraries required to run the backend, [pip install](https://packaging.python.org/en/latest/tutorials/installing-packages/) them as required 
+
+### Step 2: Launch the Frontend 
+- Setup Node.js, use the following [guide](https://nodejs.org/en/download) if not already installed
+- Install required dependencies with ```npm install```
+- Launch the web server with ```npm start```
+
+
 # 📂 Dataset Access Instructions
 
 This project uses two large datasets stored in **Google Cloud Storage (GCS)**:
@@ -76,6 +90,7 @@ This script will:
   \`gs://recomviz_home_and_kitchen/\`
 
 ---
+
 
 ## 🤝 Contributions
 
